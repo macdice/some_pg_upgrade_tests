@@ -2,7 +2,7 @@
 
 set -e
 
-PATCHED_BRANCH=collation-versioning
+TARGET_BRANCH=collation-versioning
 
 if [ ! -e postgres ] ; then
   git clone https://github.com/postgres/postgres.git
@@ -14,7 +14,7 @@ mkdir -p install-icu
 base_path=`pwd`
 
 # the branches I'm interested in today...
-for branch in $PATCHED_BRANCH REL_13_STABLE REL9_6_STABLE
+for branch in $TARGET_BRANCH REL_13_STABLE REL9_6_STABLE
 do
   # build non-ICU variant
   (
