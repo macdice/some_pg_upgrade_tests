@@ -3,6 +3,29 @@
 TARGET_BRANCH=collation-versioning
 #export PGOPTIONS='--client-min-messages=warning'
 
+run_query()
+{
+  target_install=$1
+  target_pgdata=$2
+  query="$3"
+
+  $target_install/bin/psql postgres -c "$query" >> $target_pgdata/query_output.txt 2>&1
+}
+
+dump_versions()
+{
+  target_install=$1
+  target_pgdata=$2
+
+  run_query $target_install $target_pgdata "
+    SELECT i.relname, c.collname, coalesce(refobjversion, '<NULL>') as version
+    FROM pg_depend d
+    JOIN pg_class i ON i.oid = d.objid
+    JOIN pg_collation c ON d.refobjid = c.oid
+    WHERE i.relname IN ('a_t_idx', 'b_t_idx', 'c_t_idx', 'd_t_idx')
+    ORDER BY 1, 2"
+}
+
 do_upgrade_test()
 {
   source_install=$1
@@ -22,10 +45,17 @@ do_upgrade_test()
 
   # examine the results
   $target_install/bin/pg_ctl start -w -D $target_pgdata
-  $target_install/bin/psql postgres -c "SELECT i.relname, c.collname, coalesce(refobjversion, '<NULL>') as version FROM pg_depend d JOIN pg_class i ON i.oid = d.objid JOIN pg_collation c ON d.refobjid = c.oid WHERE i.relname IN ('a_t_idx', 'b_t_idx', 'c_t_idx', 'd_t_idx', 'e_t_idx') ORDER BY 1, 2" >> $target_pgdata/simple_test.out 2>&1
-  $target_install/bin/psql postgres -c "select * from a union all select * from b union all select * from c union all select * from d union all select * from e" >> $target_pgdata/simple_test.out 2>&1
-  $target_install/bin/psql postgres -c "reindex database postgres" >> $target_pgdata/simple_test.out 2>&1
-  $target_install/bin/psql postgres -c "SELECT i.relname, c.collname, coalesce(refobjversion, '<NULL>') as version FROM pg_depend d JOIN pg_class i ON i.oid = d.objid JOIN pg_collation c ON d.refobjid = c.oid WHERE i.relname IN ('a_t_idx', 'b_t_idx', 'c_t_idx', 'd_t_idx', 'e_t_idx') ORDER BY 1, 2" >> $target_pgdata/simple_test.out 2>&1
+  dump_versions $target_install $target_pgdata
+  run_query $target_install $target_pgdata "
+    select * from a
+    union all
+    select * from b
+    union all
+    select * from c
+    union all
+    select * from d"
+  run_query $target_install $target_pgdata "reindex database postgres"
+  dump_versions $target_install $target_pgdata
   $target_install/bin/pg_ctl stop -w -D $target_pgdata
 }
 
